@@ -15,6 +15,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 DATA_FILE = "data.json"
 
+DEFAULT_ADMIN_ID = 1503121370945683626
+
 # ================= DATA =================
 def load():
     if os.path.exists(DATA_FILE):
@@ -32,16 +34,56 @@ def save(data):
 data = load()
 
 # ================= ADMIN SYSTEM =================
-def get_admins():
-    return set(data.get("admins", []))
 
+DEFAULT_ADMIN_ID = 1503121370945683626  # 최초 관리자 (OWNER)
+
+# -------------------------
+# 관리자 조회 (권한 체크용)
+# -------------------------
+def get_admins():
+    """
+    실제 저장된 관리자 + 기본 관리자(OWNER)를 합쳐서 반환
+    """
+    return set(data.get("admins", [])) | {DEFAULT_ADMIN_ID}
+
+
+# -------------------------
+# 관리자 저장 (영구 저장)
+# -------------------------
 def save_admins(admins):
+    """
+    관리자 리스트를 JSON에 저장
+    """
     data["admins"] = list(admins)
     save(data)
 
+
+# -------------------------
+# 권한 체크
+# -------------------------
 def is_admin(user_id: int):
     return user_id in get_admins()
 
+
+# -------------------------
+# 봇 시작 시 관리자 초기화 (핵심)
+# -------------------------
+@bot.event
+async def on_ready():
+    """
+    - DEFAULT_ADMIN_ID를 반드시 관리자에 포함
+    - JSON에 영구 저장
+    - slash command sync
+    """
+
+    admins = set(data.get("admins", []))
+    admins.add(DEFAULT_ADMIN_ID)
+
+    data["admins"] = list(admins)
+    save(data)
+
+    await bot.tree.sync()
+    print(f"✅ {bot.user} 로그인 완료")
 # ================= USER SYSTEM =================
 def get_user(guild_id, user_id):
     guild = data["eco"].setdefault(str(guild_id), {})
@@ -73,6 +115,12 @@ def add_exp(user, guild_id, user_id, amount):
 # ================= READY =================
 @bot.event
 async def on_ready():
+    # 관리자 자동 등록 (핵심 수정)
+    admins = set(data.get("admins", []))
+    admins.add(DEFAULT_ADMIN_ID)
+    data["admins"] = list(admins)
+    save(data)
+
     await bot.tree.sync()
     print(f"✅ {bot.user} 로그인 완료")
 
@@ -164,7 +212,7 @@ async def ranking(interaction: discord.Interaction):
 
     await interaction.response.send_message(msg)
 
-# ================= ADMIN COMMANDS =================
+# ================= ADMIN SYSTEM =================
 @bot.tree.command(name="관리자임명")
 async def add_admin(interaction: discord.Interaction, user: discord.Member):
 
